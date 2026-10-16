@@ -1,0 +1,14 @@
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+yt-dlp>=2025.1.1
+faster-whisper==1.1.*
+pyannote.audio==3.3.2
+# pyannote.audio 3.3.2 needs the older torch/torchaudio API and huggingface_hub 0.x
+torch==2.5.1
+speechbrain==1.0.3
+torchaudio==2.5.1
+huggingface_hub>=0.23,<0.28
+deep-translator>=1.11
+# offline translation (NLLB-200 via CTranslate2)
+transformers==4.46.3
+sentencepiece
