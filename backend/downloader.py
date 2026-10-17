@@ -1,17 +1,26 @@
 """yt-dlp wrapper: metadata lookup + downloads with resolution selection."""
-import os, tempfile
+import os, shutil, tempfile
 from pathlib import Path
 from yt_dlp import YoutubeDL
 from jobs import update
 
 def _extra_opts() -> dict:
     """Optional env settings for servers whose IPs get blocked by some sites (e.g. YouTube)."""
-    o = {}
-    cookies = os.environ.get("YT_COOKIES")          # contents of a Netscape cookies.txt
+    o = {
+        "no_color": True,                       # no [0;31m junk in error messages
+        "remote_components": ["ejs:github"],    # JS challenge solver script for YouTube
+    }
+    cookies = os.environ.get("YT_COOKIES")      # contents of a Netscape cookies.txt (Render)
+    cookie_file = os.environ.get("YT_COOKIES_FILE") or r"D:\video-studio\cookies.txt"
     if cookies:
         path = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
         with open(path, "w", encoding="utf-8") as f:
             f.write(cookies)
+        o["cookiefile"] = path
+    elif os.path.isfile(cookie_file):
+        # yt-dlp may rewrite the cookie file, so work on a copy
+        path = os.path.join(tempfile.gettempdir(), "yt_cookies_local.txt")
+        shutil.copyfile(cookie_file, path)
         o["cookiefile"] = path
     if os.environ.get("YTDLP_PROXY"):
         o["proxy"] = os.environ["YTDLP_PROXY"]
@@ -49,7 +58,9 @@ def _format_for(quality: str) -> str:
     if quality == "audio":
         return "bestaudio/best"
     h = int(quality)
-    return f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/best"
+    # Prefer H.264 + m4a (plays everywhere), then fall back to anything that fits.
+    return (f"bestvideo[vcodec^=avc1][height<={h}]+bestaudio[ext=m4a]"
+            f"/bestvideo[height<={h}]+bestaudio/best[height<={h}]/best")
 
 def download(job_id: str, url: str, quality: str, out_dir: str):
     Path(out_dir).mkdir(parents=True, exist_ok=True)

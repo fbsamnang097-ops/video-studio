@@ -4,3 +4,4 @@ backend/.venv/
 __pycache__/
 
 /video-studio/
+cookies*.txt
