@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,7 +18,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 OUT_DIR = os.environ.get("DOWNLOAD_DIR") or str(Path.home() / "Downloads" / "VideoStudio")
 PASSWORD = os.environ.get("APP_PASSWORD")                     # set on a public server
 CLEANUP_HOURS = float(os.environ.get("CLEANUP_HOURS", "0"))   # >0: delete old downloads (cloud)
-PROTECTED = ("/info", "/download", "/transcribe", "/translate", "/jobs", "/media", "/files", "/config")
+PROTECTED = ("/info", "/upload", "/download", "/transcribe", "/translate", "/jobs", "/media", "/files", "/config")
 
 @app.middleware("http")
 async def require_password(request: Request, call_next):
@@ -86,6 +86,39 @@ def download(req: DownloadReq):
     threading.Thread(target=downloader.download,
                      args=(job_id, req.url, req.quality, out_dir), daemon=True).start()
     return {"job_id": job_id}
+
+UPLOAD_EXTS = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".3gp",
+               ".mp3", ".m4a", ".wav", ".aac", ".ogg", ".flac"}
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "300"))
+
+@app.post("/upload")
+async def upload(file: UploadFile = File(...)):
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in UPLOAD_EXTS:
+        raise HTTPException(400, "Unsupported file type. Use a video or audio file (mp4, mov, mkv, webm, mp3, m4a, wav).")
+    Path(OUT_DIR).mkdir(parents=True, exist_ok=True)
+    dest = Path(OUT_DIR) / ("upload_" + secrets.token_hex(6) + ext)
+    limit = MAX_UPLOAD_MB * 1024 * 1024
+    size = 0
+    try:
+        with open(dest, "wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > limit:
+                    raise HTTPException(413, "File is too large (max %d MB)." % MAX_UPLOAD_MB)
+                out.write(chunk)
+    except HTTPException:
+        dest.unlink(missing_ok=True)
+        raise
+    job_id = new_job("upload")
+    JOBS[job_id]["file"] = str(dest)
+    JOBS[job_id]["status"] = "done"
+    JOBS[job_id]["stage"] = "Uploaded"
+    JOBS[job_id]["percent"] = 100
+    return {"job_id": job_id, "name": file.filename}
 
 @app.post("/transcribe")
 def transcribe(req: TranscribeReq):

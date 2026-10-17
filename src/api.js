@@ -23,6 +23,27 @@ export const startDownload = (url, quality, out_dir) => post('/download', { url,
 export const startTranslate = (job_id, target, engine) => post('/translate', { job_id, target, engine });
 export const startTranscribe = (opts) => post('/transcribe', opts);
 
+export function uploadFile(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API + '/upload');
+    if (KEY) xhr.setRequestHeader('X-App-Key', KEY);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((100 * e.loaded) / e.total));
+    };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch (err) { data = {}; }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else { const e = new Error(data.detail || 'Upload failed'); e.status = xhr.status; reject(e); }
+    };
+    xhr.onerror = () => reject(new Error('Upload failed (network error)'));
+    const fd = new FormData();
+    fd.append('file', file);
+    xhr.send(fd);
+  });
+}
+
 /** Poll a job every 600 ms, calling onUpdate each time; resolves when done, rejects on error. */
 export function pollJob(id, onUpdate) {
   return new Promise((resolve, reject) => {

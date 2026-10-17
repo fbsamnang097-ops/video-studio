@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { IS_DESKTOP, getConfig, getInfo, startDownload, startTranscribe, startTranslate, pollJob, mediaUrl, fileUrl, setKey } from './api.js';
+import { IS_DESKTOP, getConfig, getInfo, startDownload, startTranscribe, startTranslate, uploadFile, pollJob, mediaUrl, fileUrl, setKey } from './api.js';
 
 // Change this to Mr. Samnang's real Telegram username, e.g. https://t.me/username
 const TELEGRAM_URL = 'https://t.me/helloboyer';
@@ -157,6 +157,20 @@ export default function App() {
     } catch (e) { notify(e.message, 'error'); }
     setBusy('');
   }
+  const [uploadName, setUploadName] = useState('');
+  const [upPct, setUpPct] = useState(0);
+  async function uploadLocal(e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    setBusy('upload'); setUpPct(0); setInfo(null); setDl(null); setResult(null); setTr(null); setTranslations(null); setDlId(null);
+    try {
+      const { job_id } = await uploadFile(f, setUpPct);
+      setDlId(job_id); setUploadName(f.name);
+      notify('Upload complete. Now generate the transcript.', 'success');
+    } catch (err) { notify(err.message, 'error'); }
+    setBusy('');
+  }
   async function transcribe() {
     setBusy('transcribe'); setResult(null); setTranslations(null);
     try {
@@ -191,7 +205,7 @@ export default function App() {
     const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${(info?.title || 'transcript').replace(/[\\/:*?"<>|]/g, '_')}${suffix}.txt`;
+    a.download = `${(info?.title || uploadName.replace(/\.[^.]+$/, '') || 'transcript').replace(/[\\/:*?"<>|]/g, '_')}${suffix}.txt`;
     a.click(); URL.revokeObjectURL(a.href);
   }
 
@@ -253,6 +267,13 @@ export default function App() {
               onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url && fetchInfo()} />
             <button className="btn primary-blue" onClick={fetchInfo} disabled={!url || !!busy}>{busy === 'info' ? 'Fetching…' : 'Fetch video'}</button>
           </div>
+          <div className="row">
+            <label className="grow">Or upload a video/audio file (from your phone or computer)
+              <input className="input" type="file" accept="video/*,audio/*" onChange={uploadLocal} disabled={!!busy} />
+            </label>
+          </div>
+          {busy === 'upload' && <p className="muted">Uploading... {upPct}%</p>}
+          {uploadName && dlId && !busy && <div className="flash success">Uploaded: {uploadName}</div>}
           {canPickWeb && (
             <div className="row">
               <label className="grow">Save to
