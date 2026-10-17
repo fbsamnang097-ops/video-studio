@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: video-studio
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: singapore          # closest Render region to Cambodia
+    plan: starter              # use "standard" or higher if you turn on WITH_AI in the Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: APP_PASSWORD      # you will be asked to enter this in the Render dashboard
+        sync: false

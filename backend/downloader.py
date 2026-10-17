@@ -1,10 +1,24 @@
 """yt-dlp wrapper: metadata lookup + downloads with resolution selection."""
+import os, tempfile
 from pathlib import Path
 from yt_dlp import YoutubeDL
 from jobs import update
 
+def _extra_opts() -> dict:
+    """Optional env settings for servers whose IPs get blocked by some sites (e.g. YouTube)."""
+    o = {}
+    cookies = os.environ.get("YT_COOKIES")          # contents of a Netscape cookies.txt
+    if cookies:
+        path = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(cookies)
+        o["cookiefile"] = path
+    if os.environ.get("YTDLP_PROXY"):
+        o["proxy"] = os.environ["YTDLP_PROXY"]
+    return o
+
 def fetch_info(url: str) -> dict:
-    opts = {"quiet": True, "noplaylist": True, "skip_download": True}
+    opts = {"quiet": True, "noplaylist": True, "skip_download": True, **_extra_opts()}
     with YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
@@ -59,6 +73,7 @@ def download(job_id: str, url: str, quality: str, out_dir: str):
         "progress_hooks": [hook],
         "merge_output_format": "mp4",
     }
+    opts.update(_extra_opts())
     if quality == "audio":
         opts["postprocessors"] = [{"key": "FFmpegExtractAudio",
                                    "preferredcodec": "mp3", "preferredquality": "192"}]

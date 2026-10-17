@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { API, getInfo, startDownload, startTranscribe, startTranslate, pollJob } from './api.js';
+import { IS_DESKTOP, getConfig, getInfo, startDownload, startTranscribe, startTranslate, pollJob, mediaUrl, fileUrl, setKey } from './api.js';
 
 // Change this to Mr. Samnang's real Telegram username, e.g. https://t.me/username
 const TELEGRAM_URL = 'https://t.me/helloboyer';
@@ -18,6 +18,7 @@ const I = {
   sun: 'M8 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1',
   moon: 'M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z',
   globe: 'M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM1.5 8h13M8 1.5c2 2 2 11 0 13M8 1.5c-2 2-2 11 0 13',
+  folder: 'M1.5 3.5h4l1.5 1.5h7.5v8h-13z',
   file: 'M4 1.5h5l3.5 3.5v9.5H4zM9 1.5V5h3.5',
 };
 
@@ -74,8 +75,9 @@ export default function App() {
   const [tr, setTr] = useState(null);
   const [result, setResult] = useState(null);
   const [trId, setTrId] = useState(null);            // finished transcript job id
+  const [saveDir, setSaveDir] = useState(localStorage.saveDir || '');
   const [lang, setLang] = useState('km');
-  const [engine, setEngine] = useState('nllb');      // nllb = offline & unlimited, google = online
+  const [engine, setEngine] = useState(window.api ? 'nllb' : 'google');      // nllb = offline & unlimited, google = online
   const [tl, setTl] = useState(null);                // translation job state
   const [translations, setTranslations] = useState(null);
   const [subMode, setSubMode] = useState('both');    // orig | tl | both  (on the video)
@@ -87,6 +89,19 @@ export default function App() {
 
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.theme = theme; }, [theme]);
   useEffect(() => { localStorage.hfToken = token; }, [token]);
+  useEffect(() => { localStorage.saveDir = saveDir; }, [saveDir]);
+  const [needAuth, setNeedAuth] = useState(false);
+  const [pw, setPw] = useState('');
+  const [authErr, setAuthErr] = useState('');
+  useEffect(() => {
+    getConfig().then((c) => { if (!saveDir) setSaveDir(c.out_dir); })
+      .catch((e) => { if (e.status === 401) setNeedAuth(true); });
+  }, []);
+
+  async function browse() {
+    const dir = await window.api?.chooseFolder(saveDir);
+    if (dir) setSaveDir(dir);
+  }
 
   // Transcript -> native subtitles on the video (works in fullscreen too)
   useEffect(() => {
@@ -114,7 +129,7 @@ export default function App() {
   async function download() {
     setBusy('download'); setDlId(null); setResult(null);
     try {
-      const { job_id } = await startDownload(url.trim(), quality);
+      const { job_id } = await startDownload(url.trim(), quality, saveDir);
       await pollJob(job_id, setDl);
       setDlId(job_id); notify('Download complete', 'success');
     } catch (e) { notify(e.message, 'error'); }
@@ -158,7 +173,30 @@ export default function App() {
     a.click(); URL.revokeObjectURL(a.href);
   }
 
-  const previewSrc = dlId ? `${API}/media/${dlId}` : info?.preview_url;
+  if (needAuth) {
+    const login = async () => {
+      setKey(pw);
+      try { await getConfig(); setNeedAuth(false); setAuthErr(''); }
+      catch { setAuthErr('Wrong password'); }
+    };
+    return (
+      <div className="app login">
+        <div className="box blue login-box">
+          <div className="box-header"><h2>Video Studio</h2></div>
+          <div className="box-body">
+            <label>Password
+              <input className="input" type="password" autoFocus value={pw}
+                onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && login()} />
+            </label>
+            {authErr && <div className="flash error" style={{ marginTop: 10 }}>{authErr}</div>}
+            <button className="btn primary-blue" style={{ marginTop: 12 }} onClick={login}>Sign in</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const previewSrc = dlId ? mediaUrl(dlId) : info?.preview_url;
   const isAudio = quality === 'audio' && dlId;
   const heights = info?.heights?.length ? info.heights : [1080, 720, 480, 360];
   const steps = [
@@ -193,6 +231,13 @@ export default function App() {
               onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url && fetchInfo()} />
             <button className="btn primary-blue" onClick={fetchInfo} disabled={!url || !!busy}>{busy === 'info' ? 'Fetching…' : 'Fetch video'}</button>
           </div>
+          <div className="row" hidden={!IS_DESKTOP}>
+            <label className="grow">Save to
+              <input className="input" value={saveDir} onChange={(e) => setSaveDir(e.target.value)} placeholder="Choose a folder…" />
+            </label>
+            {window.api && <button className="btn" onClick={browse}><Icon d={I.folder} />Browse…</button>}
+            {window.api && saveDir && <button className="btn" onClick={() => window.api.openFolder(saveDir)}>Open folder</button>}
+          </div>
           {info ? (
             <>
               <div className="meta">
@@ -213,7 +258,11 @@ export default function App() {
                 <button className="btn primary" onClick={download} disabled={!!busy}><Icon d={I.down} />{busy === 'download' ? 'Downloading…' : 'Download'}</button>
               </div>
               <Progress job={dl} color="green" />
-              {dlId && <div className="flash success">Saved to Downloads/VideoStudio.</div>}
+              {dlId && <div className="flash success">
+                {IS_DESKTOP ? `Saved to ${dl?.file || saveDir}` : (
+                  <>Ready. <a className="btn primary" href={fileUrl(dlId)} download>Download file</a></>
+                )}
+              </div>}
             </>
           ) : <p className="muted">Fetch a video to choose its quality and start the download.</p>}
         </Box>
@@ -299,7 +348,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <span>© {new Date().getFullYear()} Video Studio v1.6 · រក្សាសិទ្ធិគ្រប់យ៉ាង (All rights reserved)</span>
+        <span>© {new Date().getFullYear()} Video Studio v1.8 · រក្សាសិទ្ធិគ្រប់យ៉ាង (All rights reserved)</span>
         <span>Developed by <a className="dev-link" href={TELEGRAM_URL} target="_blank" rel="noreferrer" title="Contact on Telegram">Mr. Samnang</a></span>
       </footer>
 
