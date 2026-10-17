@@ -1,4 +1,4 @@
-import argparse, ipaddress, os, secrets, socket, threading, time
+﻿import argparse, ipaddress, os, secrets, socket, threading, time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -105,7 +105,9 @@ def translate(req: TranslateReq):
         raise HTTPException(400, "Generate a transcript first.")
     texts = [seg["text"] for seg in src["result"]["segments"]]
     job_id = new_job("translate")
-    if req.engine == "google":
+    import importlib.util
+    use_nllb = req.engine == "nllb" and importlib.util.find_spec("transformers") is not None
+    if not use_nllb:
         threading.Thread(target=translator.run, args=(job_id, texts, req.target), daemon=True).start()
     else:
         lang = src["result"].get("language")
@@ -160,3 +162,4 @@ if __name__ == "__main__":
     if CLEANUP_HOURS > 0:
         threading.Thread(target=_cleanup_loop, daemon=True).start()
     uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
+
