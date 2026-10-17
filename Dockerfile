@@ -11,7 +11,7 @@ RUN npx vite build
 # ---- 2) Python server (serves the API and the built app) ----
 FROM python:3.11-slim
 # Change to 1 to include Whisper + speaker detection (needs a plan with 2 GB+ RAM)
-ARG WITH_AI=0
+ARG WITH_AI=1
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
