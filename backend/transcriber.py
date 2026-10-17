@@ -1,4 +1,4 @@
-"""Speech-to-text (faster-whisper) + speaker diarization (pyannote) -> speaker-labelled transcript."""
+﻿"""Speech-to-text (faster-whisper) + speaker diarization (pyannote) -> speaker-labelled transcript."""
 import subprocess, tempfile, os
 from jobs import update
 
@@ -18,7 +18,10 @@ def _extract_audio(src: str, dst: str):
                    check=True, capture_output=True)
 
 def _diarize(wav: str, hf_token: str, num_speakers: int | None):
-    from pyannote.audio import Pipeline
+    try:
+        from pyannote.audio import Pipeline
+    except ImportError:
+        return []
     import torch
     pipe = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=hf_token)
     if _device() == "cuda":
@@ -59,6 +62,7 @@ def run(job_id: str, media_path: str, hf_token: str | None,
             # 1) Speech-to-text with word timestamps
             update(job_id, stage="Transcribing speech", percent=10)
             from faster_whisper import WhisperModel
+            model_size = os.environ.get('FORCE_MODEL_SIZE', model_size)
             dev = _device()
             model = WhisperModel(model_size, device=dev,
                                  compute_type="float16" if dev == "cuda" else "int8")
