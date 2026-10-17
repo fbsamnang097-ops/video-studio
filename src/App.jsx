@@ -103,6 +103,23 @@ export default function App() {
     if (dir) setSaveDir(dir);
   }
 
+  // Hosted (web) version: let the browser write straight into a folder the person picks (Chrome/Edge)
+  const canPickWeb = !IS_DESKTOP && 'showDirectoryPicker' in window;
+  const [webDir, setWebDir] = useState(null);
+  const [webSaved, setWebSaved] = useState('');
+  async function browseWeb() {
+    try { setWebDir(await window.showDirectoryPicker({ mode: 'readwrite', id: 'videostudio' })); }
+    catch (e) { if (e.name !== 'AbortError') notify('Could not use that folder. Pick or create a sub-folder (for example Downloads/VideoStudio).', 'error'); }
+  }
+  async function saveToWebFolder(id, serverPath) {
+    const name = (serverPath || 'video.mp4').split(/[\\/]/).pop().replace(/[\\/:*?"<>|]/g, '_');
+    const res = await fetch(fileUrl(id));
+    if (!res.ok) throw new Error('Could not fetch the file from the server.');
+    const fh = await webDir.getFileHandle(name, { create: true });
+    await res.body.pipeTo(await fh.createWritable());   // streams to disk, no big memory use
+    return name;
+  }
+
   // Transcript -> native subtitles on the video (works in fullscreen too)
   useEffect(() => {
     const v = videoRef.current;
@@ -130,8 +147,13 @@ export default function App() {
     setBusy('download'); setDlId(null); setResult(null);
     try {
       const { job_id } = await startDownload(url.trim(), quality, saveDir);
-      await pollJob(job_id, setDl);
-      setDlId(job_id); notify('Download complete', 'success');
+      const j = await pollJob(job_id, setDl);
+      setDlId(job_id); setWebSaved('');
+      if (canPickWeb && webDir) {
+        const name = await saveToWebFolder(job_id, j.file);
+        setWebSaved(`${webDir.name}/${name}`);
+        notify(`Saved to folder “${webDir.name}”`, 'success');
+      } else notify('Download complete', 'success');
     } catch (e) { notify(e.message, 'error'); }
     setBusy('');
   }
@@ -231,6 +253,14 @@ export default function App() {
               onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url && fetchInfo()} />
             <button className="btn primary-blue" onClick={fetchInfo} disabled={!url || !!busy}>{busy === 'info' ? 'Fetching…' : 'Fetch video'}</button>
           </div>
+          {canPickWeb && (
+            <div className="row">
+              <label className="grow">Save to
+                <input className="input" readOnly value={webDir ? webDir.name : ''} placeholder="Choose a folder on your computer…" />
+              </label>
+              <button className="btn" onClick={browseWeb}><Icon d={I.folder} />Browse…</button>
+            </div>
+          )}
           <div className="row" hidden={!IS_DESKTOP}>
             <label className="grow">Save to
               <input className="input" value={saveDir} onChange={(e) => setSaveDir(e.target.value)} placeholder="Choose a folder…" />
@@ -260,7 +290,7 @@ export default function App() {
               <Progress job={dl} color="green" />
               {dlId && <div className="flash success">
                 {IS_DESKTOP ? `Saved to ${dl?.file || saveDir}` : (
-                  <>Ready. <a className="btn primary" href={fileUrl(dlId)} download>Download file</a></>
+                  <>{webSaved ? `Saved to ${webSaved}. ` : 'Ready. '}<a className="btn primary" href={fileUrl(dlId)} download>Download file</a></>
                 )}
               </div>}
             </>
@@ -348,7 +378,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <span>© {new Date().getFullYear()} Video Studio v1.8 · រក្សាសិទ្ធិគ្រប់យ៉ាង (All rights reserved)</span>
+        <span>© {new Date().getFullYear()} Video Studio v1.9 · រក្សាសិទ្ធិគ្រប់យ៉ាង (All rights reserved)</span>
         <span>Developed by <a className="dev-link" href={TELEGRAM_URL} target="_blank" rel="noreferrer" title="Contact on Telegram">Mr. Samnang</a></span>
       </footer>
 
