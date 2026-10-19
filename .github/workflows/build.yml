@@ -70,3 +70,5 @@ jobs:
           files: |
             release/*.exe
             release/*.dmg
+            release/latest*.yml
+            release/*.blockmap

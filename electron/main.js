@@ -1,4 +1,5 @@
-﻿const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
+const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -60,6 +61,6 @@ ipcMain.handle('choose-folder', async (e, startPath) => {
 });
 ipcMain.handle('open-folder', (e, folderPath) => shell.openPath(folderPath));
 
-app.whenReady().then(() => { startBackend(); waitForBackend(createWindow); });
+app.whenReady().then(() => { startBackend(); waitForBackend(createWindow); if (app.isPackaged && process.platform === 'win32') autoUpdater.checkForUpdatesAndNotify().catch(() => {}); });
 app.on('before-quit', () => backend && backend.kill());
 app.on('window-all-closed', () => app.quit());
