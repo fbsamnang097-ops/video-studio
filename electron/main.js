@@ -61,6 +61,57 @@ ipcMain.handle('choose-folder', async (e, startPath) => {
 });
 ipcMain.handle('open-folder', (e, folderPath) => shell.openPath(folderPath));
 
-app.whenReady().then(() => { startBackend(); waitForBackend(createWindow); if (app.isPackaged && process.platform === 'win32') autoUpdater.checkForUpdatesAndNotify().catch(() => {}); });
+const fsNode = require('fs');
+
+function logUpdate(msg) {
+  try {
+    const file = path.join(app.getPath('userData'), 'update.log');
+    fsNode.appendFileSync(file, `[${new Date().toISOString()}] ${msg}\n`);
+  } catch (e) {}
+}
+
+let updateDialogShown = false;
+
+function setupAutoUpdate() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => logUpdate('checking'));
+  autoUpdater.on('update-available', (i) => logUpdate('available ' + i.version));
+  autoUpdater.on('update-not-available', (i) => logUpdate('up to date (' + i.version + ')'));
+  autoUpdater.on('error', (e) => logUpdate('error: ' + ((e && e.stack) || e)));
+
+  autoUpdater.on('update-downloaded', (info) => {
+    logUpdate('downloaded ' + info.version);
+    if (updateDialogShown) return;
+    updateDialogShown = true;
+    dialog.showMessageBox({
+      type: 'info',
+      buttons: ['ចាប់ផ្តើមឡើងវិញឥឡូវ', 'ពេលក្រោយ'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'មានកំណែថ្មី',
+      message: 'Video Studio ' + info.version + ' ត្រៀមរួចហើយ',
+      detail: 'ចង់ចាប់ផ្តើមឡើងវិញដើម្បី update ឬ? បើជ្រើស "ពេលក្រោយ" វានឹងដំឡើងពេលអ្នកបិទ app។'
+    }).then((r) => {
+      if (r.response === 0) {
+        logUpdate('user chose restart');
+        if (backend) backend.kill();
+        autoUpdater.quitAndInstall();
+      }
+    });
+  });
+
+  const check = () =>
+    autoUpdater.checkForUpdates().catch((e) => logUpdate('check failed: ' + e));
+  check();
+  setInterval(check, 4 * 60 * 60 * 1000);
+}
+
+app.whenReady().then(() => {
+  startBackend();
+  waitForBackend(createWindow);
+  if (app.isPackaged && process.platform === 'win32') setupAutoUpdate();
+});
 app.on('before-quit', () => backend && backend.kill());
 app.on('window-all-closed', () => app.quit());
