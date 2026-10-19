@@ -1,6 +1,6 @@
 {
   "name": "video-studio",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
@@ -54,13 +54,15 @@
     "appId": "com.videostudio.app",
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Video-Studio-Setup-${version}.${ext}"
     },
     "mac": {
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.video"
+      "category": "public.app-category.video",
+      "artifactName": "Video-Studio-${version}-${arch}.${ext}"
     },
     "publish": [
       {
