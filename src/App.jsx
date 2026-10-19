@@ -399,7 +399,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <span>© {new Date().getFullYear()} Video Studio v1.9 · រក្សាសិទ្ធិគ្រប់យ៉ាង (All rights reserved)</span>
+        <span>© {new Date().getFullYear()} Video Studio v{__APP_VERSION__} · រក្សាសិទ្ធិគ្រប់យ៉ាង (All rights reserved)</span>
         <span>Developed by <a className="dev-link" href={TELEGRAM_URL} target="_blank" rel="noreferrer" title="Contact on Telegram">Mr. Samnang</a></span>
       </footer>
 
