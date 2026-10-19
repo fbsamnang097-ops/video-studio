@@ -108,10 +108,85 @@ function setupAutoUpdate() {
   setInterval(check, 4 * 60 * 60 * 1000);
 }
 
+const httpsNode = require('https');
+
+function isNewerVersion(a, b) {
+  const pa = String(a).replace(/^v/, '').split('.').map(Number);
+  const pb = String(b).replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
+function fetchLatestRelease() {
+  return new Promise((resolve, reject) => {
+    const req = httpsNode.get(
+      'https://api.github.com/repos/fbsamnang097-ops/video-studio/releases/latest',
+      { headers: { 'User-Agent': 'video-studio-app', 'Accept': 'application/vnd.github+json' } },
+      (res) => {
+        let body = '';
+        res.on('data', (c) => (body += c));
+        res.on('end', () => {
+          if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
+          try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.setTimeout(15000, () => req.destroy(new Error('timeout')));
+  });
+}
+
+let macNoticeShownFor = null;
+
+function setupMacUpdateNotice() {
+  const check = async () => {
+    try {
+      logUpdate('mac: checking');
+      const rel = await fetchLatestRelease();
+      const latest = String(rel.tag_name || '').replace(/^v/, '');
+      const current = app.getVersion();
+      if (!latest || !isNewerVersion(latest, current)) {
+        logUpdate('mac: up to date (' + current + ')');
+        return;
+      }
+      logUpdate('mac: available ' + latest);
+      if (macNoticeShownFor === latest) return;
+      macNoticeShownFor = latest;
+
+      const isArm = process.arch === 'arm64';
+      const dmgs = (rel.assets || []).filter((a) => /\.dmg$/i.test(a.name));
+      const asset = dmgs.find((a) => (/arm64/i.test(a.name)) === isArm);
+      const url = (asset && asset.browser_download_url) || rel.html_url;
+
+      const r = await dialog.showMessageBox({
+        type: 'info',
+        buttons: ['ទាញយកឥឡូវ', 'ពេលក្រោយ'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'មានកំណែថ្មី',
+        message: 'Video Studio ' + latest + ' មានរួចហើយ',
+        detail: 'កំណែបច្ចុប្បន្ន៖ ' + current + '។ ចុច "ទាញយកឥឡូវ" ដើម្បីទាញ dmg ថ្មី រួចដំឡើងជំនួសកំណែចាស់ក្នុង Applications។'
+      });
+      if (r.response === 0) {
+        logUpdate('mac: user chose download ' + url);
+        shell.openExternal(url);
+      }
+    } catch (e) {
+      logUpdate('mac: check failed: ' + ((e && e.message) || e));
+    }
+  };
+  setTimeout(check, 10000);
+  setInterval(check, 4 * 60 * 60 * 1000);
+}
+
 app.whenReady().then(() => {
   startBackend();
   waitForBackend(createWindow);
   if (app.isPackaged && process.platform === 'win32') setupAutoUpdate();
+  else if (app.isPackaged && process.platform === 'darwin') setupMacUpdateNotice();
 });
 app.on('before-quit', () => backend && backend.kill());
 app.on('window-all-closed', () => app.quit());
