@@ -36,7 +36,7 @@ jobs:
       - name: Install Python deps (light, no AI packages)
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller "fastapi==0.115.*" "uvicorn[standard]==0.32.*" python-multipart yt-dlp yt-dlp-ejs curl_cffi "deep-translator>=1.11" certifi "faster-whisper==1.1.*"
+          pip install pyinstaller "fastapi==0.115.*" "uvicorn[standard]==0.32.*" python-multipart yt-dlp yt-dlp-ejs curl_cffi "deep-translator>=1.11" certifi "faster-whisper==1.1.*" "transformers==4.46.3" sentencepiece protobuf
 
       - name: Build backend (PyInstaller)
         working-directory: backend

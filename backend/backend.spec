@@ -15,7 +15,7 @@ tmp_ret = collect_all('curl_cffi')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('certifi')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-for _m in ['faster_whisper', 'ctranslate2', 'tokenizers', 'onnxruntime', 'av', 'huggingface_hub', 'numpy']:
+for _m in ['faster_whisper', 'ctranslate2', 'tokenizers', 'onnxruntime', 'av', 'huggingface_hub', 'numpy', 'transformers', 'sentencepiece']:
     tmp_ret = collect_all(_m)
     datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
@@ -29,7 +29,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['torch', 'torchaudio', 'pyannote', 'transformers'],
+    excludes=['torch', 'torchaudio', 'pyannote'],
     noarchive=False,
     optimize=0,
 )
