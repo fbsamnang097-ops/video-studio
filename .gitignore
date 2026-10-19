@@ -1,7 +1,10 @@
-node_modules/
-dist/
-backend/.venv/
+.venv/
 __pycache__/
-
-/video-studio/
-cookies*.txt
+*.pyc
+downloads/
+*.webm
+*.mp4
+*.part
+cookies.txt
+.env
+node_modules/
