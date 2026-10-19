@@ -20,7 +20,7 @@ function startBackend() {
   const args = ['--port', String(PORT), '--out', path.join(app.getPath('downloads'), 'VideoStudio')];
   let cmd, cmdArgs;
   if (packaged) {
-    cmd = path.join(process.resourcesPath, 'backend', 'backend.exe');
+    cmd = path.join(process.resourcesPath, 'backend', process.platform === 'win32' ? 'backend.exe' : 'backend');
     cmdArgs = args;
   } else {
     const venv = path.join(__dirname, '..', 'backend', '.venv');
