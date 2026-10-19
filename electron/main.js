@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
+﻿const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -8,11 +8,28 @@ const DEV_URL = 'http://localhost:5173';
 let backend;
 
 function startBackend() {
-  const venv = path.join(__dirname, '..', 'backend', '.venv');
-  const py = process.env.PYTHON_BIN ||
-    (process.platform === 'win32' ? path.join(venv, 'Scripts', 'python.exe') : path.join(venv, 'bin', 'python'));
-  backend = spawn(py, [path.join(__dirname, '..', 'backend', 'main.py'), '--port', String(PORT),
-    '--out', path.join(app.getPath('downloads'), 'VideoStudio')], { stdio: 'inherit' });
+  const packaged = app.isPackaged;
+  const binDir = packaged
+    ? path.join(process.resourcesPath, 'bin')
+    : path.join(__dirname, '..', 'bin');
+
+  // Put bundled ffmpeg/deno first on PATH so yt-dlp finds them
+  const pathKey = Object.keys(process.env).find(k => k.toLowerCase() === 'path') || 'PATH';
+  const env = { ...process.env, [pathKey]: binDir + path.delimiter + (process.env[pathKey] || '') };
+
+  const args = ['--port', String(PORT), '--out', path.join(app.getPath('downloads'), 'VideoStudio')];
+  let cmd, cmdArgs;
+  if (packaged) {
+    cmd = path.join(process.resourcesPath, 'backend', 'backend.exe');
+    cmdArgs = args;
+  } else {
+    const venv = path.join(__dirname, '..', 'backend', '.venv');
+    cmd = process.env.PYTHON_BIN ||
+      (process.platform === 'win32' ? path.join(venv, 'Scripts', 'python.exe') : path.join(venv, 'bin', 'python'));
+    cmdArgs = [path.join(__dirname, '..', 'backend', 'main.py'), ...args];
+  }
+  backend = spawn(cmd, cmdArgs, { env, windowsHide: true, stdio: packaged ? 'ignore' : 'inherit' });
+  backend.on('error', (err) => dialog.showErrorBox('Backend failed to start', String(err)));
 }
 
 function waitForBackend(done, tries = 60) {

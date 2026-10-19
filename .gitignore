@@ -8,3 +8,10 @@ downloads/
 cookies.txt
 .env
 node_modules/
+
+bin/
+backend/dist/
+backend/build/
+release/
+
+dist/
