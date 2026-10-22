@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import Poster from './Poster.jsx';
 import { IS_DESKTOP, getConfig, getInfo, startDownload, startTranscribe, startTranslate, startConvert, uploadFile, pollJob, mediaUrl, fileUrl, setKey } from './api.js';
 
 // Change this to Mr. Samnang's real Telegram username, e.g. https://t.me/username
@@ -72,6 +73,7 @@ export default function App() {
   const [bitrate, setBitrate] = useState('192k');
   useEffect(() => { setCv(null); setCvId(null); }, [dlId]);
   const [toast, setToast] = useState(null);
+  const [posterOpen, setPosterOpen] = useState(false);
   const [busy, setBusy] = useState('');
   const [token, setToken] = useState(localStorage.hfToken || '');
   const [model, setModel] = useState('small');
@@ -430,8 +432,9 @@ export default function App() {
 
       <footer className="footer">
         <span>© {new Date().getFullYear()} Video Studio v{__APP_VERSION__} · រក្សាសិទ្ធិគ្រប់យ៉ាង (All rights reserved)</span>
-        <span>Developed by <a className="dev-link" href={TELEGRAM_URL} target="_blank" rel="noreferrer" title="Contact on Telegram">Mr. Samnang</a></span>
+        <span>Developed by <button type="button" className="dev-link dev-btn" onClick={() => setPosterOpen(true)} title="View profile">Mr. Samnang</button></span>
       </footer>
+      {posterOpen && <Poster onClose={() => setPosterOpen(false)} />}
 
       {toast && <div className={`flash toast ${toast.type}`} role="alert">{toast.msg}</div>}
     </div>
