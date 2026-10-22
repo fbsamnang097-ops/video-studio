@@ -89,7 +89,8 @@ def download(req: DownloadReq):
 
 UPLOAD_EXTS = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".3gp",
                ".mp3", ".m4a", ".wav", ".aac", ".ogg", ".flac"}
-MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "300"))
+# 0 = unlimited (default). Set the MAX_UPLOAD_MB env var to cap uploads, e.g. on a small web server.
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "0"))
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
@@ -107,7 +108,7 @@ async def upload(file: UploadFile = File(...)):
                 if not chunk:
                     break
                 size += len(chunk)
-                if size > limit:
+                if limit and size > limit:
                     raise HTTPException(413, "File is too large (max %d MB)." % MAX_UPLOAD_MB)
                 out.write(chunk)
     except HTTPException:
