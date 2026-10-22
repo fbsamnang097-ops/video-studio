@@ -22,6 +22,7 @@ export const getInfo = (url) => post('/info', { url });
 export const startDownload = (url, quality, out_dir) => post('/download', { url, quality, out_dir: out_dir || null });
 export const startTranslate = (job_id, target, engine) => post('/translate', { job_id, target, engine });
 export const startTranscribe = (opts) => post('/transcribe', opts);
+export const startConvert = (job_id, bitrate) => post('/convert', { job_id, bitrate: bitrate || '192k' });
 
 export function uploadFile(file, onProgress) {
   return new Promise((resolve, reject) => {

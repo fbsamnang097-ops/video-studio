@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { IS_DESKTOP, getConfig, getInfo, startDownload, startTranscribe, startTranslate, uploadFile, pollJob, mediaUrl, fileUrl, setKey } from './api.js';
+import { IS_DESKTOP, getConfig, getInfo, startDownload, startTranscribe, startTranslate, startConvert, uploadFile, pollJob, mediaUrl, fileUrl, setKey } from './api.js';
 
 // Change this to Mr. Samnang's real Telegram username, e.g. https://t.me/username
 const TELEGRAM_URL = 'https://t.me/helloboyer';
@@ -67,6 +67,10 @@ export default function App() {
   const [quality, setQuality] = useState('720');
   const [dl, setDl] = useState(null);
   const [dlId, setDlId] = useState(null);
+  const [cv, setCv] = useState(null);                 // MP3 conversion job state
+  const [cvId, setCvId] = useState(null);             // finished MP3 job id
+  const [bitrate, setBitrate] = useState('192k');
+  useEffect(() => { setCv(null); setCvId(null); }, [dlId]);
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState('');
   const [token, setToken] = useState(localStorage.hfToken || '');
@@ -169,6 +173,16 @@ export default function App() {
       setDlId(job_id); setUploadName(f.name);
       notify('Upload complete. Now generate the transcript.', 'success');
     } catch (err) { notify(err.message, 'error'); }
+    setBusy('');
+  }
+  async function convertMp3() {
+    setBusy('convert'); setCv(null); setCvId(null);
+    try {
+      const { job_id } = await startConvert(dlId, bitrate);
+      await pollJob(job_id, setCv);
+      setCvId(job_id);
+      notify('MP3 ready', 'success');
+    } catch (e) { notify(e.message, 'error'); }
     setBusy('');
   }
   async function transcribe() {
@@ -316,6 +330,22 @@ export default function App() {
               </div>}
             </>
           ) : <p className="muted">Fetch a video to choose its quality and start the download.</p>}
+          {dlId && !isAudio && (
+            <div className="row">
+              <label>MP3 quality
+                <select className="input" value={bitrate} onChange={(e) => setBitrate(e.target.value)}>
+                  {['128k', '192k', '256k', '320k'].map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </label>
+              <button className="btn primary-purple" onClick={convertMp3} disabled={!!busy}><Icon d={I.file} />{busy === 'convert' ? 'Converting…' : 'Convert to MP3'}</button>
+            </div>
+          )}
+          <Progress job={cv && cv.status !== 'done' ? cv : null} color="purple" />
+          {cvId && <div className="flash success">
+            {IS_DESKTOP ? `MP3 saved to ${cv?.file}` : (
+              <>MP3 ready. <a className="btn primary" href={fileUrl(cvId)} download>Download MP3</a></>
+            )}
+          </div>}
         </Box>
 
         <Box tone="orange" icon={I.play} title="Preview" right={result && <span className="label purple">Subtitles on</span>}>

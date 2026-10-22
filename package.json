@@ -1,6 +1,6 @@
 {
   "name": "video-studio",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",

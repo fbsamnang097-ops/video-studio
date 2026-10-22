@@ -1,4 +1,4 @@
-﻿import argparse, ipaddress, os, secrets, socket, threading, time
+import argparse, ipaddress, os, secrets, shutil, socket, subprocess, threading, time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import downloader, transcriber, translator
-from jobs import JOBS, new_job
+from jobs import JOBS, new_job, update as job_update
 
 app = FastAPI(title="Video Studio backend")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -18,7 +18,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 OUT_DIR = os.environ.get("DOWNLOAD_DIR") or str(Path.home() / "Downloads" / "VideoStudio")
 PASSWORD = os.environ.get("APP_PASSWORD")                     # set on a public server
 CLEANUP_HOURS = float(os.environ.get("CLEANUP_HOURS", "0"))   # >0: delete old downloads (cloud)
-PROTECTED = ("/info", "/upload", "/download", "/transcribe", "/translate", "/jobs", "/media", "/files", "/config")
+PROTECTED = ("/info", "/upload", "/download", "/transcribe", "/translate", "/convert", "/jobs", "/media", "/files", "/config")
 
 @app.middleware("http")
 async def require_password(request: Request, call_next):
@@ -146,6 +146,51 @@ def translate(req: TranslateReq):
         lang = src["result"].get("language")
         threading.Thread(target=translator.run_nllb, args=(job_id, texts, req.target, lang), daemon=True).start()
     return {"job_id": job_id}
+
+class ConvertReq(BaseModel):
+    job_id: str
+    bitrate: str = "192k"
+
+def _run_convert(job_id: str, src: str, bitrate: str):
+    try:
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            raise RuntimeError("FFmpeg is not available.")
+        s = Path(src)
+        dst = s.with_suffix(".mp3")
+        n = 1
+        while dst.exists():
+            dst = s.with_name(f"{s.stem} ({n}).mp3")
+            n += 1
+        job_update(job_id, status="running", stage="Converting to MP3", percent=10)
+        r = subprocess.run(
+            [ffmpeg, "-hide_banner", "-loglevel", "error", "-n", "-i", str(s),
+             "-vn", "-codec:a", "libmp3lame", "-b:a", bitrate, str(dst)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if r.returncode != 0 or not dst.exists():
+            dst.unlink(missing_ok=True)
+            raise RuntimeError((r.stderr or "FFmpeg failed").strip()[-400:])
+        job_update(job_id, status="done", stage="Converted", percent=100, file=str(dst))
+    except Exception as e:
+        job_update(job_id, status="error", stage="Failed", error=str(e))
+
+@app.post("/convert")
+def convert(req: ConvertReq):
+    src = JOBS.get(req.job_id)
+    f = src.get("file") if src else None
+    if not f or not Path(f).is_file():
+        raise HTTPException(400, "Download the video first.")
+    if Path(f).suffix.lower() == ".mp3":
+        raise HTTPException(400, "This file is already an MP3.")
+    if req.bitrate not in ("128k", "192k", "256k", "320k"):
+        raise HTTPException(400, "Unsupported bitrate.")
+    if not shutil.which("ffmpeg"):
+        raise HTTPException(400, "FFmpeg is not available on this server.")
+    job_id = new_job("convert")
+    threading.Thread(target=_run_convert, args=(job_id, f, req.bitrate), daemon=True).start()
+    return {"job_id": job_id}
+
 
 @app.get("/jobs/{job_id}")
 def job(job_id: str):
